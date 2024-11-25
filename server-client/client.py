@@ -1,4 +1,4 @@
-
+# O PROTOCOLO SERA COMPOSTO POR CABEÇALHO COM INFORMAÇÕES DE QUEM ENVIOU
 from socket import *
 import requests
  
@@ -10,8 +10,13 @@ print("")
 print("-----------------------------")
 print("App de Mensagens - Conversas")
 print("-----------------------------")
+print("")
+print("")
+login = input("Usuario : ")
+senha = input("Senha: ")
  
-msg = "HEAD--"+ip_publico+"&191.54.26.245&CONSULTA BODY--"
+msg = "HEAD--Login BODY--user="+login+"pass="+senha
+
 msg = msg.encode()
 
 print("Solicitando conversas para o servidor")
