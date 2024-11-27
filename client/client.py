@@ -1,6 +1,6 @@
 # O PROTOCOLO SERA COMPOSTO POR CABEÇALHO COM INFORMAÇÕES DE QUEM ENVIOU
 from socket import *
-import requests
+#import requests
 import json
 import threading
 import time
@@ -95,11 +95,6 @@ def parseMsn3Request(request):
     except KeyError:
         requestData["header"]["RES"] = ""
         requestData["header"]["RESPR"] = ""    
-
-    try:
-        requestData["header"]["CNTT"] = resp_h[3]
-    except IndexError:
-        requestData["header"]["CNTT"] = ""
     
     requestData["body"] = resp_b  
 
@@ -131,8 +126,7 @@ ip_privado = getPrivateIp()
 
 
 # CÓDIGO PRINCIPAL
-while True:
-    
+while True:    
     print("")
     print("")
     print("-----------------------------")
@@ -159,70 +153,56 @@ while True:
             
             if loginData["header"]["STATUS"] == "OK":
                 if loginData["body"][0] != "NEG" and loginData["body"][0] != "RNF":
-                        userid = loginData["body"][0]
+                    userid = loginData["body"][0]
 
-                        while True:
+                    while True:
+                        print("")
+                        print("")
+                        print("-----------------------------")
+                        print("App de Mensagens - "+username)
+                        print("-----------------------------")
+                        print("")
+                        resp = conversas(userid,"USER_STATUS")      
+
+                        header = resp["header"]
+                        body = resp["body"]
+
+                        if header["CNTT"] == "json":
                             print("")
+                            print("talk - conversar")
+                            print("new - Nova contato")
+                            print("quit - Sair")
                             print("")
-                            print("-----------------------------")
-                            print("App de Mensagens - "+username)
-                            print("-----------------------------")
-                            print("")
-                            print("")
-                            resp = conversas(userid,"USER_STATUS")
+                            opcao = input("Selecione uma opcao: ")
 
-                            print(resp["body"])
-                            break
+                            match opcao:
+                                case "new":
+                                    print("algo")
+                                case "quit":
+                                    break
+                                case "talk":
+                                    print("")
+                                    print("")
+                                    corpo_conversas = json.loads(body[0])
+                                    contato = []
+                                    n = 0                                
+                                    for chat_index in corpo_conversas:
+                                        contato.append(corpo_conversas.get(chat_index))
 
-                            resp = resp.split("--H")
-                            header = resp[0].split("&")
-                            body = resp[1]
+                                        print(contato[int(chat_index)].get("id"),end=" ")
+                                        print(" - "  + contato[int(chat_index)].get("name"),end=" ") 
+                                        print(" "+contato[int(chat_index)].get("status"))
 
-                            if header[3] == "json":
-                                corpo_conversas = json.loads(resp[1])
-                                n = 0
-                                
-                                for chat in corpo_conversas:
-                                    user_chat = corpo_conversas.get(str(chat)).get("usuario")
-                                    
-                                    print(chat +" - "+user_chat)
+                                    opcao = input("Conversar com: ")
 
-                                print("new - Nova conversa")
-                                print("quit - Sair")
-                                print("")
-                                opcao = input("Selecione uma opcao: ")
+                                    resp = conversas(userid,"USER_CHAT",opcao)
 
-                                if opcao != "new" and opcao != "quit":
-                                    chat = corpo_conversas.get(str(opcao)).get("conversa")                                    
-
-                                    while True:
-                                        for users in chat:
-                                           print(users[0]+": "+users[1]+" "+users[2])
-
-                                        print(" ")                                        
-                                        opcao = int(input("""
-                                            1 - Nova mensagem
-                                            2 - Voltar
-                                                  """))
-                                        match opcao:
-                                            case 1:
-                                                new_msg = input("Nova mensagem: ")
-                                            case 2:
-                                                break
-                                            case _:
-                                                print("")
-                                                print("Opção inexistente!")
-                                                print("")
-                                    
-                                    
-                                    
-                            else:
-                                corpo_conversas = resp[1]
-                                
-                            break            
-                
+                                case _:
+                                    print("TODO")
+                else:
+                    print("Acesso negado")
             else:
-                print("Erro ao autenticar usuario")
+                print("Erro ao se comunicar com servidor")
 
         case 2:
             break

@@ -162,19 +162,30 @@ while True:
                                 match limiter:
                                     case "USER_STATUS":
                                         users = {}
-                                        for chat in conversas.get(id):  
-                                            print(chat)                                      
-                                            users["usuario"]["name"] = chat["usuario"]
-                                            if usuarios.get(chat["usuario"]).get("IP") == "0":
-                                                users["usuario"]["status"] = "OFF"
-                                            else:
-                                                users["usuario"]["status"] = "ON"
+                                        n = 0
+
+                                        for talked_to_id in conversas.get(id):
+                                            username = conversas.get(id).get(talked_to_id).get("usuario")
+                                            ip_atual = usuarios.get(username).get("IP")
+
+                                            if ip_atual == "0": 
+                                                state = "OFF" 
+                                            else: 
+                                                state = "ON"                                            
+
+                                            users[n] = {
+                                                "id": talked_to_id,
+                                                "name": username,
+                                                "status": state 
+                                            }
+
+                                            n += 1
 
                             except IndexError:
                                 print("deu ruim pai")
                                 
 
-                            response = "SND=SERVER&STATUS=OK&CNTT=json--RESP "+json.dumps(conversas.get(id))
+                            response = "SND=SERVER&STATUS=OK&CNTT=json--RESP "+json.dumps(users)
                         else:
                             response = "SND=SERVER&STATUS=OK--RESP  NUF"
                                             
