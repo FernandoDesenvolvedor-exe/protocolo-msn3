@@ -4,9 +4,6 @@
 
 from socket import *
 import json
-import threading
-import time
-import queue
 
 server_ip = "127.0.0.1"
 socketServidor = socket(AF_INET, SOCK_STREAM)
@@ -76,22 +73,22 @@ conversas = {
         "1":{
             "enderecado":"Felipe",
             "conversa":{
-                "0":["Oi mano","2024-12-25 10:33:03"],
-                "2":["Tudo bem?","2024-12-25 10:33:58"],
+                "0":["Oi mano","2024-12-25 10:33:03","lida"],
+                "2":["Tudo bem?","2024-12-25 10:33:58","lida"],
             }
         },
         "2":{
             "enderecado":"Guilherme",
             "conversa":{
-                "0":["Oi mano","2024-12-25 11:30:00"],
-                "2":["Ja buscou a parada la?","2024-12-25 11:35:30"]              
+                "0":["Oi mano","2024-12-25 11:30:00","lida"],
+                "2":["Ja buscou a parada la?","2024-12-25 11:35:30","lida"]              
             }
         },
         "3":{
             "enderecado":"Andressa",
             "conversa":{
-                "0":["Oi vida","2024-12-25 20:01:03"],
-                "2":["Como ta a aula?","2024-12-25 20:02:14"]
+                "0":["Oi vida","2024-12-25 20:01:03","lida"],
+                "2":["Como ta a aula?","2024-12-25 20:02:14","lida"]
             }
         }
     },
@@ -99,15 +96,15 @@ conversas = {
         "0":{
             "enderecado":"Fernando",
             "conversa":{
-                "1":["Aew cara","2024-12-25 10:33:40"],
-                "3":["Tudo certo aqui mano","2024-12-25 10:34:26"]
+                "1":["Aew cara","2024-12-25 10:33:40","lida"],
+                "3":["Tudo certo aqui mano","2024-12-25 10:34:26","lida"]
             }
         },
         "2":{
             "enderecado":"Guilherme",
             "conversa":{
-                "0":["Oi mano","2024-12-25","11:30:00"],
-                "2":["Ja buscou a parada la?","2024-12-25","11:35:30"],
+                "0":["Oi mano","2024-12-25","11:30:00","lida"],
+                "2":["Ja buscou a parada la?","2024-12-25","11:35:30","lida"],
             }
         }        
     },
@@ -115,15 +112,15 @@ conversas = {
         "0":{
             "enderecado":"Fernando",
             "conversa":{
-                "1":["Fala","2024-12-25 11:33:40"],
-                "3":["Sim","2024-12-25 11:36:20"]
+                "1":["Fala","2024-12-25 11:33:40","lida"],
+                "3":["Sim","2024-12-25 11:36:20","lida"]
             }
         },
         "1":{
             "enderecado":"Felipe",
             "conversa":{
-                "1":["Fala","2024-12-25","11:33:40"],
-                "3":["Sim","2024-12-25","11:36:20"]
+                "1":["Fala","2024-12-25","11:33:40","lida"],
+                "3":["Sim","2024-12-25","11:36:20","lida"]
             }
         } 
     },
@@ -131,8 +128,8 @@ conversas = {
         "0":{
             "enderecado":"Fernando",
             "conversa":{
-                "1":["Oii","2024-12-25 20:01:15"],
-                "3":["Entediante","2024-12-25 20:02:23"]
+                "1":["Oii","2024-12-25 20:01:15","lida"],
+                "3":["Entediante","2024-12-25 20:02:23","lida"]
             }
         }        
     }
@@ -154,6 +151,7 @@ while True:
         user_ip = data["header"]["SND"]
         method = data["header"]["MET"]
         resource = data["header"]["RES"]
+        body = data["body"][0]
 
         match method:
             case "AUTH":
@@ -211,7 +209,7 @@ while True:
                         id_contact = data["header"]["RESPR"][1]
                         
                         if conversas.get(id) != None:
-                            if conversas.get(id).get(id_contact) != None:                                
+                            if conversas.get(id).get(id_contact) != None:
                                 messages_sent = conversas.get(id).get(id_contact)
                                 messages_received = conversas.get(id_contact).get(id)
                                 chat = {"messages_sent":messages_sent,"messages_received":messages_received}
@@ -221,6 +219,25 @@ while True:
                             chat = {"error":"UNE"} #Usuario não encotrado
                         
                         response = "SND=SERVER&STATUS=OK&CNTT=json--RESP "+json.dumps(chat,indent=None,separators=(',', ':'))
+                    case "UltimaMensagem":
+                        if data["header"].get("RESPR") != None:
+                            user_id = data["header"]["RESPR"][0]
+                            contact_id = data["header"]["RESPR"][1]
+
+                            for indice in conversas[user_id][contact_id]["conversa"]:
+                                sender_last_id = int(indice)
+
+                            for indice in conversas[contact_id][user_id]["conversa"]:
+                                receiver_last_id = int(indice)
+
+                            if sender_last_id > receiver_last_id:
+                                message = conversas[user_id][contact_id]["conversa"][sender_last_id]
+                            elif receiver_last_id > sender_last_id:
+                                message = conversas[user_id][contact_id]["conversa"][receiver_last_id]
+                            
+                            response = "SND=SERVER&STATUS=OKCNTT=json--RESP "+json.dumps(message)
+                        else:
+                            response = "SND=SERVER&STATUS=OK--RESP PNNE"
                     case _:
                         response = "SND=SERVER&STATUS=OK--RESP RNF"
             case "REG":
@@ -228,21 +245,40 @@ while True:
                     case "NovaMensagem": 
                         if len(data["body"]) > 0:    
                             try:
-                                data["body"] = json.loads(data["body"]) 
+                                
+                                data["body"] = json.loads(data["body"][0]) 
 
-                                id_sender = data["body"][0]
-                                id_receiver = data["body"][1]
-                                message = data["body"][2]
-                                date_time = data["body"][3]
+                                id_sender = data["body"]["sender_id"]
+                                id_receiver = data["body"]["reciver_id"]
+                                message = data["body"]["message"]
+                                date_time = data["body"]["datetime"]
 
-                                new_message = [message, date_time]
+                                new_message = [message, date_time, "nova"]
+                                
+                                sender_last_id = 0
+                                receiver_last_id = 0
+                                new_id = 0
 
-                                conversas[id_sender][id_receiver]["conversa"] = {new_message}
+                                for indice in conversas[id_sender][id_receiver]["conversa"]:
+                                    sender_last_id = int(indice)
+
+                                for indice in conversas[id_receiver][id_sender]["conversa"]:
+                                    receiver_last_id = int(indice)
+
+                                if sender_last_id > receiver_last_id:
+                                    new_id = sender_last_id+1
+                                elif receiver_last_id > sender_last_id:
+                                    new_id = receiver_last_id+1
+
+                                conversas[id_sender][id_receiver]["conversa"][new_id] =  new_message
 
                                 response = "SND=SERVER&STATUS=OK--RESP MIS" # Mensagem inserida com sucesso
 
                             except IndexError:
                                 response = "SND=SERVER&STATUS=OK--RESP PNNE" # parametro necessario não encontrado
+                            except json.JSONDecodeError as e:
+                                print(e)
+                                response = "SND=SERVER&STATUS=OK--RESP JMF" # Json mal formatado
                         else:
                             response = "SND=SERVER&STATUS=OK--RESP PNNE" # parametro necessario não encontrado
                     case _:
@@ -250,7 +286,8 @@ while True:
             case _:
                 response = "SND=SERVER&STATUS=OK--RESP MNS" # metodo não encontrado
 
-    except Exception:
+    except Exception as e:
+        print(e)
         response = "SND=SERVER&STATUS=ERR--RESP UE" # erro inesperado
 
         

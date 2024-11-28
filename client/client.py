@@ -6,18 +6,26 @@ import json
 import threading
 import time
 import queue
-
-
+import os
+import platform
+import subprocess
+import sys
     
 # VARIAVEIS GLOBAIS
-# Fila para armazenar mensagens recebidas, para exibição na tela
-mensagens_recebidas = queue.Queue() 
 tuplaDestino = ('localhost',12000)
 msn3HeaderParams = ["AUTH","CDS","RDS"]
 #ip_publico = requests.get('https://api.ipify.org/').text 
 
+# Fila para armazenar mensagens recebidas, para exibição na tela
+mensagens_recebidas = queue.Queue()
 
 # FUNÇÕES
+def limpaTela():
+    if platform.system() == "Windows":
+        os.system("cls")
+    else:
+        os.system("clear")
+
 def getPrivateIp():
     try:
         # Cria um socket de conexão para determinar o IP privado
@@ -27,27 +35,6 @@ def getPrivateIp():
         return ip
     except Exception as e:
         return f"Erro ao obter IP privado: {e}"
-
-def receber_mensagens():
-    # Configura o socket de servidor para receber mensagens
-    server_socket = socket.socket(AF_INET, SOCK_STREAM)
-    server_socket.bind(tuplaDestino)
-    server_socket.listen(1)
-    print("Aguardando conexão para receber mensagens...")
-
-    # Aceita a conexão quando o outro usuário estiver pronto
-    conn, addr = server_socket.accept()
-    print(f"Conectado com {addr}")
-
-    while True:
-        mensagem = conn.recv(1024).decode()
-        if mensagem.lower() == 'sair':
-            print("O outro usuário encerrou a conexão.")
-            break
-        mensagens_recebidas.put(f"Outro: {mensagem}")  # Adiciona a mensagem recebida na fila
-
-    conn.close()
-    server_socket.close()
 
 def translateRequestMethod(method):
     match method.upper():
@@ -128,11 +115,15 @@ def conversas(user_id,contact_id):
     msg = "MET=CDS&SND="+ip_privado+"&RES=Conversas("+str(user_id)+","+contact_id+")--H "
     return validaResposta(enviaRequisicao(msg))
 
+def carregaMensagem(user_id,contact_id):
+    msg = "MET=CDS&SND="+ip_privado+"&RES=Conversas("+str(user_id)+","+contact_id+")--H "
+
 def login(username,password):
     msg = "MET=AUTH&SND="+ip_privado+"&RES=Login("+username+","+password+")--H"
     return validaResposta(enviaRequisicao(msg))
 
-def novaMensagem(user_id,contact_id,msg):
+def enviarMensagem(user_id,contact_id):
+    msg = input(f"{alignCenter()}Mensagem: ")
     datahora = datetime.now()
     datahora = datahora.strftime("%Y:%m:%d %H:%M:%S")
     msg = {
@@ -141,13 +132,29 @@ def novaMensagem(user_id,contact_id,msg):
         "message":msg,
         "datetime":datahora
     }
-
     msg = "MET=REG&SND="+ip_privado+"&RES=NovaMensagem()&CNTT=json--H "+json.dumps(msg)
-    return validaResposta(enviaRequisicao(msg))
+    resp = validaResposta(enviaRequisicao(msg))
+    if resp["header"]["STATUS"] == "OK" and resp["body"][0] == "MIS":
+        print(f"{alignCenter()}Mensagem enviada com sucesso")
+    else:
+        print(f"{alignCenter()}Erro ao enviar mensagem")
 
 def alignCenter():
     return "                                        "
 
+def receberUltimaMensagem(user_id,contact_id):
+    global receberUltimaMensagem_stop
+
+    while not receberUltimaMensagem_stop:
+        msg = "MET=CDS&SND="+ip_privado+"&RES=UltimaMensagem("+str(user_id)+","+str(contact_id)+")--H "
+        mensagem = validaResposta(enviaRequisicao(msg))
+
+        print(mensagem)
+        mensagens_recebidas.put(f"Outro: {mensagem}")
+
+        time.sleep(0.5)
+
+#threading.Thread(target=exibir_mensagens, daemon=True).start()
 ip_privado = getPrivateIp()
 
 
@@ -173,20 +180,24 @@ while True:
             username = "Fernando"
             password = "123"            
 
-            print(f"{alignCenter()}Solicitando authenticacao de usuario")  
+            print(f"{alignCenter()}Solicitando authenticacao de usuario")           
+            time.sleep(1)      
 
             try:
                 loginData = login(username,password)
             
-                if loginData["body"][0] != "NEG" and loginData["body"][0] != "RNF":                     
+                if loginData["body"][0] != "NEG" and loginData["body"][0] != "RNF":      
+                    limpaTela()
                     print("") 
                     print(f"{alignCenter()}Usuario Autorizado")      
-                    print("")   
+                    print("")            
+                    time.sleep(1)      
 
                     user_id = loginData["body"][0]
                     contatos_salvos = contatos(user_id)
 
                     while True:
+                        limpaTela()
                         print(f"""
                                         -----------------------------
                                         App de Mensagens - {username}
@@ -204,8 +215,14 @@ while True:
                             case "quit":
                                 break
                             case "talk"|"Talk"|"TALK":
+                                limpaTela()
                                 print("")
-                                print("")                                
+                                print("")         
+                                print(f"""
+                                        -----------------------------
+                                        App de Mensagens - {username}
+                                        -----------------------------
+                                        """)                       
                                 contato = []
                                 n = 0                                
                                 for chat_index in contatos_salvos["body"]:
@@ -221,37 +238,14 @@ while True:
                                 match opcao:
                                     case "quit":
                                         break
-                                    case _:
-                                        while True:
-                                            chat = conversas(user_id,opcao)["body"]
-                                            contact_id = opcao
-                                            contact_name = chat.get("messages_sent").get("enderecado")
-                                        
-                                            chat2 = chat.get("messages_received")
-                                            chat = chat.get("messages_sent")
+                                    case _:                                   
+                                        limpaTela()     
+                                        contact_id = opcao 
 
-                                            chat2.pop("enderecado")
-                                            chat.pop("enderecado")
-                                            
-                                            for index in chat2.get("conversa"):
-                                                chat2.get("conversa").get(index).append(contact_name)
+                                        sys.path.append('.')
+                                        subprocess.run(["start","cmd", "/K", "python", "-c", "from messanger import *;app = Messager('"+str(user_id)+"','"+str(username)+"','"+str(contact_id)+"');app.run();"],shell=True)
 
-                                            for index in chat.get("conversa"):
-                                                chat.get("conversa").get(index).append(username)
-
-                                            chat.get("conversa").update(chat2.get("conversa"))
-                                            del chat2
-                                            chat = chat["conversa"]
-
-                                            print(len(chat))
-                                            chat = dict(sorted(chat.items()))
-
-                                            print(f"{alignCenter()}---------------------------------")
-                                            print(f"{alignCenter()}Conversa com {contact_name} código({contact_id})")
-                                            print(f"{alignCenter()}---------------------------------")       
-
-                                            for index in chat:
-                                                print(f"""{alignCenter()}{chat[index][2]}: {chat[index][0]} -- {chat[index][1]}""")
+                                        while True:                                                                                       
 
                                             print("")
                                             print(f"{alignCenter()}newm - Nova mensagem")
@@ -260,9 +254,11 @@ while True:
                                             
                                             match option:
                                                 case "newm":
-                                                    nova_mensagem = input(f"{alignCenter()}Mensagem: ")
-                                                    novaMensagem(user_id,contact_id,nova_mensagem)
+                                                    enviarMensagem(user_id,contact_id)
                                                 case "quit":
+                                                    receberUltimaMensagem_stop = True
+                                                    
+                                                    #threadRcvMsg.join()
                                                     break
 
                             case _:
