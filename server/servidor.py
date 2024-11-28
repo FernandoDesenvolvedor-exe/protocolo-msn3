@@ -5,14 +5,24 @@
 from socket import *
 import json
 
-server_ip = "127.0.0.1"
 socketServidor = socket(AF_INET, SOCK_STREAM)
 tuplaEscuta = ('',12000)
 socketServidor.bind( tuplaEscuta )
 socketServidor.listen(True)
-
 msn3HeaderParams = ["AUTH","CDS","REG"]
 
+def getPrivateIp():
+    try:
+        # Cria um socket de conexão para determinar o IP privado
+        with socket(AF_INET, SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))  # Conecta a um servidor externo (Google DNS)
+            ip = s.getsockname()[0]    # Obtém o IP da máquina
+        return ip
+    except Exception as e:
+        return f"Erro ao obter IP privado: {e}"
+
+server_ip = getPrivateIp()
+    
 def translateRequestMethod(method):
     match method.upper():
         case "RS":
@@ -228,14 +238,35 @@ while True:
                                 sender_last_id = int(indice)
 
                             for indice in conversas[contact_id][user_id]["conversa"]:
-                                receiver_last_id = int(indice)
+                                receiver_last_id = int(indice)        
 
-                            if sender_last_id > receiver_last_id:
-                                message = conversas[user_id][contact_id]["conversa"][sender_last_id]
-                            elif receiver_last_id > sender_last_id:
-                                message = conversas[user_id][contact_id]["conversa"][receiver_last_id]
-                            
+                            message = {
+                                "name": "",
+                                "message": "",
+                                "datetime": "",
+                                "status": ""
+                            }                    
+
+                            if sender_last_id > receiver_last_id:      
+                                message["name"] = conversas[contact_id][user_id]["enderecado"]
+                                message["message"] = conversas[user_id][contact_id]["conversa"].get(str(sender_last_id))[0]
+                                message["datetime"] = conversas[user_id][contact_id]["conversa"].get(str(sender_last_id))[1]
+                                message["status"] = conversas[user_id][contact_id]["conversa"].get(str(sender_last_id))[2]
+
+                                if message["status"] == "nova":
+                                    conversas[user_id][contact_id]["conversa"][str(sender_last_id)][2] = "lida"
+                            else:                                
+                                message["name"] = conversas[user_id][contact_id]["enderecado"]
+                                message["message"] = conversas[contact_id][user_id]["conversa"].get(str(receiver_last_id))[0]
+                                message["datetime"] = conversas[contact_id][user_id]["conversa"].get(str(receiver_last_id))[1]
+                                message["status"] = conversas[contact_id][user_id]["conversa"].get(str(receiver_last_id))[2]
+
+                                if message["status"] == "nova":
+                                    conversas[contact_id][user_id]["conversa"][str(receiver_last_id)][2] = "lida"  # altera valor de para mensagem lida
+                           
                             response = "SND=SERVER&STATUS=OKCNTT=json--RESP "+json.dumps(message)
+
+                            del message
                         else:
                             response = "SND=SERVER&STATUS=OK--RESP PNNE"
                     case _:
@@ -270,7 +301,7 @@ while True:
                                 elif receiver_last_id > sender_last_id:
                                     new_id = receiver_last_id+1
 
-                                conversas[id_sender][id_receiver]["conversa"][new_id] =  new_message
+                                conversas[id_sender][id_receiver]["conversa"][str(new_id)] =  new_message
 
                                 response = "SND=SERVER&STATUS=OK--RESP MIS" # Mensagem inserida com sucesso
 

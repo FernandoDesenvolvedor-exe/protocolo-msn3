@@ -12,7 +12,7 @@ import subprocess
 import sys
     
 # VARIAVEIS GLOBAIS
-tuplaDestino = ('localhost',12000)
+tuplaDestino = (f'192.168.1.23',12000)
 msn3HeaderParams = ["AUTH","CDS","RDS"]
 #ip_publico = requests.get('https://api.ipify.org/').text 
 
@@ -142,18 +142,6 @@ def enviarMensagem(user_id,contact_id):
 def alignCenter():
     return "                                        "
 
-def receberUltimaMensagem(user_id,contact_id):
-    global receberUltimaMensagem_stop
-
-    while not receberUltimaMensagem_stop:
-        msg = "MET=CDS&SND="+ip_privado+"&RES=UltimaMensagem("+str(user_id)+","+str(contact_id)+")--H "
-        mensagem = validaResposta(enviaRequisicao(msg))
-
-        print(mensagem)
-        mensagens_recebidas.put(f"Outro: {mensagem}")
-
-        time.sleep(0.5)
-
 #threading.Thread(target=exibir_mensagens, daemon=True).start()
 ip_privado = getPrivateIp()
 
@@ -243,7 +231,7 @@ while True:
                                         contact_id = opcao 
 
                                         sys.path.append('.')
-                                        subprocess.run(["start","cmd", "/K", "python", "-c", "from messanger import *;app = Messager('"+str(user_id)+"','"+str(username)+"','"+str(contact_id)+"');app.run();"],shell=True)
+                                        process = subprocess.run(["start","cmd", "/K", "python", "-c", "from messanger import *;app = Messager('"+str(user_id)+"','"+str(username)+"','"+str(contact_id)+"');app.run();"],shell=True)
 
                                         while True:                                                                                       
 
@@ -256,9 +244,7 @@ while True:
                                                 case "newm":
                                                     enviarMensagem(user_id,contact_id)
                                                 case "quit":
-                                                    receberUltimaMensagem_stop = True
-                                                    
-                                                    #threadRcvMsg.join()
+                                                    process.terminate()                                                    
                                                     break
 
                             case _:

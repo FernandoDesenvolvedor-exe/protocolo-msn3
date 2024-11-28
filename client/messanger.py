@@ -127,7 +127,12 @@ class Messager:
         try:
             msg = "MET=CDS&SND="+self.getPrivateIp()+"&RES=UltimaMensagem("+str(self.id_sender)+","+str(self.id_receiver)+")--H "
             mensagem = self.validaResposta(self.enviaRequisicao(msg))
-            print(mensagem)
+            mensagem = json.loads(mensagem["body"][0]) 
+
+            if(mensagem["status"]) == "nova":
+                print(f"{mensagem["name"]}: {mensagem["message"]} -- {mensagem["datetime"]}")
+            else:
+                pass
         except ConnectionError:
             pass
 
