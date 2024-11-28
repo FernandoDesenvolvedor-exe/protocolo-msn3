@@ -12,7 +12,7 @@ import subprocess
 import sys
     
 # VARIAVEIS GLOBAIS
-tuplaDestino = (f'192.168.1.23',12000)
+tuplaDestino = ('192.168.1.23',12000)
 msn3HeaderParams = ["AUTH","CDS","RDS"]
 #ip_publico = requests.get('https://api.ipify.org/').text 
 
