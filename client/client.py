@@ -162,11 +162,8 @@ while True:
     opcao = int(input(f"{alignCenter()}Escolha uma opcao: "))
     match opcao:
         case 1:
-            #username = input("Usuario : ")
-            #password = input("Senha: ")
-
-            username = "Fernando"
-            password = "123"            
+            username = input("Usuario : ")
+            password = input("Senha: ")    
 
             print(f"{alignCenter()}Solicitando authenticacao de usuario")           
             time.sleep(1)      
@@ -230,8 +227,19 @@ while True:
                                         limpaTela()     
                                         contact_id = opcao 
 
-                                        sys.path.append('.')
-                                        process = subprocess.run(["start","cmd", "/K", "python", "-c", "from messanger import *;app = Messager('"+str(user_id)+"','"+str(username)+"','"+str(contact_id)+"');app.run();"],shell=True)
+                                        script_dir = os.path.dirname(os.path.abspath(__file__))
+                                        messanger_path = os.path.join(script_dir, "messanger.py")    
+                                        script_dir = script_dir.replace('\\', '/')
+                                        print(f"{script_dir}")
+                                                                                                
+                                        process = subprocess.Popen([
+                                            "start",
+                                            "cmd",
+                                            "/K",
+                                            "python",
+                                            "-c",
+                                            f"import sys; sys.path.append('{script_dir}');from messanger import *;app = Messager('{str(user_id)}','{str(username)}','{str(contact_id)}');app.run();"],
+                                            shell=True)
 
                                         while True:                                                                                       
 
@@ -244,7 +252,8 @@ while True:
                                                 case "newm":
                                                     enviarMensagem(user_id,contact_id)
                                                 case "quit":
-                                                    process.terminate()                                                    
+                                                    if process.poll() is None:
+                                                        process.terminate()                                                    
                                                     break
 
                             case _:
