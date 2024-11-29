@@ -218,10 +218,14 @@ while True:
                         id_user = data["header"]["RESPR"][0]
                         id_contact = data["header"]["RESPR"][1]
                         
-                        if conversas.get(id) != None:
-                            if conversas.get(id).get(id_contact) != None:
-                                messages_sent = conversas.get(id).get(id_contact)
-                                messages_received = conversas.get(id_contact).get(id)
+                        if conversas.get(id_user) != None:
+                            if conversas[id_user].get(id_contact) != None:
+                                #messages_sent = {"conversas": []}
+                                #for each in conversas.get(id).get(id_contact):
+                                #    messages_sent = each
+                                #print(messages_sent)
+                                messages_sent = conversas[id_user][id_contact]
+                                messages_received = conversas[id_contact][id_user]
                                 chat = {"messages_sent":messages_sent,"messages_received":messages_received}
                             else: 
                                 chat = {"error":"CNE"} #Contato não encontrado
