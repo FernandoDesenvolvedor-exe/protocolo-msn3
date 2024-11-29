@@ -1,82 +1,19 @@
 #
 # Servidor
 #
-
+from manager import *
 from socket import *
 import json
 
-socketServidor = socket(AF_INET, SOCK_STREAM)
-tuplaEscuta = ('',12000)
-socketServidor.bind( tuplaEscuta )
-socketServidor.listen(True)
-msn3HeaderParams = ["AUTH","CDS","REG"]
+# variaveis globais
+requestManager = RequestManager()
 
-def getPrivateIp():
-    try:
-        # Cria um socket de conexão para determinar o IP privado
-        with socket(AF_INET, SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))  # Conecta a um servidor externo (Google DNS)
-            ip = s.getsockname()[0]    # Obtém o IP da máquina
-        return ip
-    except Exception as e:
-        return f"Erro ao obter IP privado: {e}"
-
-server_ip = getPrivateIp()
-    
-def translateRequestMethod(method):
-    match method.upper():
-        case "RS":
-            return "RESPOSTA DO SERVIDOR"
-        case "AUTH":
-            return "AUTENTICACAO"
-        case "CDS":
-            return "CONSULTA DE DADOS DO SERVIDOR"
-        case "REG":
-            return "REGISTRAR"
-        case _:
-            return "METODO INVALIDO"  
-
-def parseMsn3Request(request):
-    if request.find("--H") != -1:
-        request = request.split("--H")
-    elif request.find("--RESP"):
-        request = request.split("--RESP")
-
-    resp_h = request[0].strip().split("&")
-    resp_b = request[1].strip().split("&")
-
-    requestData = {"header": {}}
-
-    for data in resp_h:
-        key_data = data.split("=")
-        requestData["header"][key_data[0]] = key_data[1]
-
-    try:        
-        if requestData["header"].get("RES") != None: 
-            res_param = requestData["header"]["RES"].replace(")","&").replace("(","&").split("&")
-            res_param.pop(2)
-            res =  res_param[0]
-            params = str(res_param[1])
-
-        if params != '':
-            params = params.split(",")
-
-        requestData["header"]["RES"] = res
-        requestData["header"]["RESPR"] = params  
-    except KeyError:
-        requestData["header"]["RES"] = ""
-        requestData["header"]["RESPR"] = ""    
-    
-    requestData["body"] = resp_b  
-
-    return requestData
-
-
-#               [usuarios]
-usuarios = {"Fernando": {"senha":"123","id":0, "IP":"0"},
-            "Felipe": {"senha":"123","id":1, "IP":"0"},
-            "Guilherme": {"senha":"123","id":2, "IP":"0"},
-            "Andressa": {"senha":"123","id":3, "IP":"0"}}
+usuarios = {
+    "0": {"username": "Fernando", "senha":"123", "IP": None},
+    "1": {"username": "Felipe","senha":"123", "IP": None},
+    "2": {"username": "Guilherme","senha":"123", "IP": None},
+    "3": {"username": "Andressa","senha":"123", "IP": None}
+}
 
 conversas = {
     "0":{
@@ -145,6 +82,12 @@ conversas = {
     }
 }
 
+
+socketServidor = socket(AF_INET, SOCK_STREAM)
+tuplaEscuta = ('',12000)
+socketServidor.bind( tuplaEscuta )
+socketServidor.listen(True)
+
 while True:
     #
     # Recebe a mensagem
@@ -178,6 +121,9 @@ while True:
                                 response = "SND=SERVER&STATUS=OK--RESP NEG"
                         else:
                             response = "SND=SERVER&STATUS=OK--RESP NEG"
+                    case "Logout":
+                        print(data)
+                        raise Exception
                     case _:
                         response = "SND=SERVER&STATUS=ERR--RESP RNF"
             case "CDS":
@@ -219,14 +165,12 @@ while True:
                         id_contact = data["header"]["RESPR"][1]
                         
                         if conversas.get(id_user) != None:
-                            if conversas[id_user].get(id_contact) != None:
-                                #messages_sent = {"conversas": []}
-                                #for each in conversas.get(id).get(id_contact):
-                                #    messages_sent = each
-                                #print(messages_sent)
+                            if conversas[id_user].get(id_contact) != None:                              
+
                                 messages_sent = conversas[id_user][id_contact]
                                 messages_received = conversas[id_contact][id_user]
                                 chat = {"messages_sent":messages_sent,"messages_received":messages_received}
+
                             else: 
                                 chat = {"error":"CNE"} #Contato não encontrado
                         else:

@@ -1,5 +1,6 @@
 # O PROTOCOLO SERA COMPOSTO POR CABEÇALHO COM INFORMAÇÕES DE QUEM ENVIOU
 from socket import *
+from manager import *
 from datetime import datetime
 #import requests
 import json
@@ -10,10 +11,10 @@ import os
 import platform
 import subprocess
 import sys
-    
-# VARIAVEIS GLOBAIS
-tuplaDestino = ('192.168.1.23',12000)
-msn3HeaderParams = ["AUTH","CDS","RDS"]
+
+chatManager = ChatManager()
+requestManager = RequestManager()
+
 #ip_publico = requests.get('https://api.ipify.org/').text 
 
 # Fila para armazenar mensagens recebidas, para exibição na tela
@@ -108,19 +109,15 @@ def validaResposta(resposta):
     return resposta
 
 def contatos(user_id):
-    msg = "MET=CDS&SND="+ip_privado+"&RES=Contatos("+str(user_id)+")--H "
+    msg = "MET=CDS&SND="+chatManager.private_ip+"&RES=Contatos("+str(user_id)+")--H "
     return validaResposta(enviaRequisicao(msg))
 
 def conversas(user_id,contact_id):
-    msg = "MET=CDS&SND="+ip_privado+"&RES=Conversas("+str(user_id)+","+contact_id+")--H "
+    msg = "MET=CDS&SND="+chatManager.private_ip+":12000&RES=Conversas("+str(user_id)+","+contact_id+")--H "
     return validaResposta(enviaRequisicao(msg))
 
 def carregaMensagem(user_id,contact_id):
-    msg = "MET=CDS&SND="+ip_privado+"&RES=Conversas("+str(user_id)+","+contact_id+")--H "
-
-def login(username,password):
-    msg = "MET=AUTH&SND="+ip_privado+"&RES=Login("+username+","+password+")--H"
-    return validaResposta(enviaRequisicao(msg))
+    msg = "MET=CDS&SND="+chatManager.private_ip+"&RES=Conversas("+str(user_id)+","+contact_id+")--H "
 
 def enviarMensagem(user_id,contact_id):
     msg = input(f"{alignCenter()}Mensagem: ")
@@ -132,7 +129,7 @@ def enviarMensagem(user_id,contact_id):
         "message":msg,
         "datetime":datahora
     }
-    msg = "MET=REG&SND="+ip_privado+"&RES=NovaMensagem()&CNTT=json--H "+json.dumps(msg)
+    msg = "MET=REG&SND="+chatManager.private_ip+"&RES=NovaMensagem()&CNTT=json--H "+json.dumps(msg)
     resp = validaResposta(enviaRequisicao(msg))
     if resp["header"]["STATUS"] == "OK" and resp["body"][0] == "MIS":
         print(f"{alignCenter()}Mensagem enviada com sucesso")
@@ -142,72 +139,122 @@ def enviarMensagem(user_id,contact_id):
 def alignCenter():
     return "                                        "
 
-#threading.Thread(target=exibir_mensagens, daemon=True).start()
-ip_privado = getPrivateIp()
+def logout(user_id):
+    return chatManager.sendMsn3Request(
+        address=chatManager.private_ip,
+        door=chatManager.private_door,
+        met="AUTH",
+        res="Logout",
+        res_params=user_id
+    )
+        
+def login(username,password,requestManager: RequestManager):       
+    resp = requestManager.sendMsn3Request(
+        address=requestManager.getPrivateIp(),
+        door=requestManager.getPrivateDoor(),
+        met="AUTH",
+        res="Login",
+        res_params=[username,password]
+    )
+
+    print(resp)
+    sys.exit(0)
 
 
 # CÓDIGO PRINCIPAL
 while True:    
+    limpaTela()
+    print("")
     print("")
     print("")
     print(f"{alignCenter()}-----------------------------")
     print(f"{alignCenter()}App de Mensagens")
     print(f"{alignCenter()}-----------------------------")
     print("")
-    print("")
-    print(f"{alignCenter()}1 - Login")
-    print(f"{alignCenter()}2 - Sair")
+    print(f"{alignCenter()}log - Login")
+    print(f"{alignCenter()}cad - Cadastro")
+    print(f"{alignCenter()}quit - Sair")
     print("")
 
-    opcao = int(input(f"{alignCenter()}Escolha uma opcao: "))
+    opcao = input(f"{alignCenter()}Escolha uma opcao: ")
     match opcao:
-        case 1:
-            username = input("Usuario : ")
-            password = input("Senha: ")    
+        case "log":
+            limpaTela()
+            print("")
+            print("")
+            print("")
+            print(f"{alignCenter()}--------------------------------")            
+            print(f"{alignCenter()}            Login")
+            print(f"{alignCenter()}--------------------------------")
+            print("")
+            username = input(f"{alignCenter()}Usuario : ")
+            password = input(f"{alignCenter()}Senha: ")
 
+            limpaTela()
+            print("")
+            print("")
+            print("")
+            print("")
             print(f"{alignCenter()}Solicitando authenticacao de usuario")           
-            time.sleep(1)      
+            time.sleep(0.7)      
 
             try:
-                loginData = login(username,password)
-            
-                if loginData["body"][0] != "NEG" and loginData["body"][0] != "RNF":      
-                    limpaTela()
-                    print("") 
-                    print(f"{alignCenter()}Usuario Autorizado")      
-                    print("")            
-                    time.sleep(1)      
+                loginData = login(username,password,requestManager)
 
-                    user_id = loginData["body"][0]
-                    contatos_salvos = contatos(user_id)
+                if loginData["body"][0] != "NEG" and loginData["body"][0] != "RNF":   
+                    chatManager.setUserName(username)
+                    print("")
+                    print("")
+                    print(f"{alignCenter()}Usuario Autorizado")
+                    print("")
+                    time.sleep(0.7)                   
+
+                    chatManager.setUserId(loginData["body"][0])
+                    contatos_salvos = contatos(chatManager.user_id)
 
                     while True:
                         limpaTela()
-                        print(f"""
-                                        -----------------------------
-                                        App de Mensagens - {username}
-                                        -----------------------------
-                                        
-                                        talk - conversar
-                                        new - Novo contato
-                                        quit - Sair"
-                                                """)
+                        print(f"{alignCenter()}-----------------------------")
+                        print(f"{alignCenter()}App de Mensagens - {username}")
+                        print(f"{alignCenter()}-----------------------------")
+                        print()                                        
+                        print(f"{alignCenter()}talk - conversar")
+                        print(f"{alignCenter()}new -  Novo contato")
+                        print(f"{alignCenter()}quit - Logout")
                         opcao = input(f"{alignCenter()}Selecione uma opcao: ")
 
                         match opcao:
                             case "new":
-                                print("algo")
+                                print("TODO")
                             case "quit":
-                                break
+                                limpaTela()
+                                print(f"{alignCenter()}Saindo da conta")
+                                time.sleep(0.2)
+                                limpaTela()
+                                print(f"{alignCenter()}Saindo da conta..")
+                                time.sleep(0.2)
+                                limpaTela()
+                                print(f"{alignCenter()}Saindo da conta...")
+                                time.sleep(0.2)
+                                
+                                if logout(chatManager.user_id):
+                                    break
+                                else:
+                                    limpaTela()
+                                    print("")             
+                                    print("")             
+                                    print("")                                        
+                                    print(f"{alignCenter()}Falha ao tentar sair da conta")
+                                    time.sleep(1)
+
                             case "talk"|"Talk"|"TALK":
                                 limpaTela()
                                 print("")
                                 print("")         
-                                print(f"""
-                                        -----------------------------
-                                        App de Mensagens - {username}
-                                        -----------------------------
-                                        """)                       
+                                print("")
+                                print(f"{alignCenter()}-----------------------------")
+                                print(f"{alignCenter()}App de Mensagens - {username}")
+                                print(f"{alignCenter()}-----------------------------")
                                 contato = []
                                 n = 0                                
                                 for chat_index in contatos_salvos["body"]:
@@ -228,7 +275,7 @@ while True:
                                         contact_id = opcao 
 
                                         script_dir = os.path.dirname(os.path.abspath(__file__))
-                                        messanger_path = os.path.join(script_dir, "messanger.py")    
+                                        messanger_path = os.path.join(script_dir, "manager.py")    
                                         script_dir = script_dir.replace('\\', '/')
                                         print(f"{script_dir}")
                                                                                                 
@@ -238,7 +285,7 @@ while True:
                                             "/K",
                                             "python",
                                             "-c",
-                                            f"import sys; sys.path.append('{script_dir}');from messanger import *;app = Messager('{str(user_id)}','{str(username)}','{str(contact_id)}');app.run();"],
+                                            f"import sys; sys.path.append('{script_dir}');from manager import *;app = ChatManager('{str(user_id)}','{str(username)}','{str(contact_id)}');app.run();"],
                                             shell=True)
 
                                         while True:                                                                                       
@@ -259,16 +306,39 @@ while True:
                             case _:
                                 print("TODO")
                 else:
-                    print("Acesso negado")
+                    limpaTela()
+                    print("")
+                    print("")
+                    print("")
+                    print("")
+                    print("Acesso negado!")
             except ConnectionError:
-                print("Erro ao tentar se cominicar com servidor")
-
-        case 2:
+                limpaTela()
+                print("")
+                print("")
+                print("")
+                print("")
+                print(f"{alignCenter()}Erro ao tentar se cominicar com servidor")
+        case "cad":
+            break
+        case "quit":
+            limpaTela()
+            print("")
+            print("")
+            print("")
+            print("")
+            print(f"{alignCenter()}Volte sempre!")
+            time.sleep(1)
+            sys.exit(0)
             break
         case _:
+            limpaTela()
             print("")
-            print("Opcao inválida")
             print("")
+            print("")
+            print("")
+            print(f"{alignCenter()}Opcao inválida")
+            time.sleep(0.6)
 
 
 
