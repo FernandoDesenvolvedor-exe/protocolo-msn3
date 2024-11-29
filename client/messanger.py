@@ -8,7 +8,7 @@ class Messager:
         self.id_sender = id_sender
         self.name_sender = name_sender
         self.id_receiver = id_receiver
-        self.tuplaDestino = ('localhost',12000)
+        self.tuplaDestino = ('192.168.1.23',12000)
         self.msn3HeaderParams = ["AUTH","CDS","RDS"]
     
     def enviaRequisicao(self,msg):
