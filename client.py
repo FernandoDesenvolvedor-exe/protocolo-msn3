@@ -149,20 +149,19 @@ def logout(user_id):
     )
         
 def login(username,password,requestManager: RequestManager):       
-    resp = requestManager.sendMsn3Request(
-        address=requestManager.getPrivateIp(),
-        door=requestManager.getPrivateDoor(),
+    request = Request(
+        destiny_addr="192.168.5.165",
+        destiny_door=12000,
         met="AUTH",
         res="Login",
-        res_params=[username,password]
+        res_params=(username,password)
     )
 
-    print(resp)
-    sys.exit(0)
+    requestManager.sendMsn3Request(request)
 
-
+requestManager.setLineEndIp("192.168.68.107") # inicialmente, o ip privcdo do servidor deve ser colocado aqui
 # CÓDIGO PRINCIPAL
-while True:    
+while True:
     limpaTela()
     print("")
     print("")

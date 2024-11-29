@@ -1,19 +1,23 @@
 #
 # Servidor
 #
+
 from manager import *
 from socket import *
 import json
 
+
 # variaveis globais
 requestManager = RequestManager()
 
-usuarios = {
-    "0": {"username": "Fernando", "senha":"123", "IP": None},
-    "1": {"username": "Felipe","senha":"123", "IP": None},
-    "2": {"username": "Guilherme","senha":"123", "IP": None},
-    "3": {"username": "Andressa","senha":"123", "IP": None}
-}
+usuarios = list([
+    {"username": "Fernando", "password":"123", "IP": None},
+    {"username": "Felipe","password":"123", "IP": None},
+    {"username": "Guilherme","password":"123", "IP": None},
+    {"username": "Andressa","password":"123", "IP": None}
+])
+
+#[(x,y) for x in [1,2,3]   ]
 
 conversas = {
     "0":{
@@ -53,7 +57,7 @@ conversas = {
                 "0":["Oi mano","2024-12-25","11:30:00","lida"],
                 "2":["Ja buscou a parada la?","2024-12-25","11:35:30","lida"],
             }
-        }        
+        }
     },
     "2":{
         "0":{
@@ -82,47 +86,54 @@ conversas = {
     }
 }
 
-
-socketServidor = socket(AF_INET, SOCK_STREAM)
-tuplaEscuta = ('',12000)
-socketServidor.bind( tuplaEscuta )
-socketServidor.listen(True)
+requestManager.generateSocketListener()
 
 while True:
     #
     # Recebe a mensagem
     #
-    conexao, endereco = socketServidor.accept()
-    mensagem = conexao.recv(1024)
-    mensagem = mensagem.decode()
+    request = requestManager.catchDecodedRequest()
 
-    print(f"Recebido: {mensagem}")
+    print(f"Recebido: {requestManager.messageCaught.decode()}")
 
-    try:
-        data = parseMsn3Request(mensagem)
+    try:       
 
-        user_ip = data["header"]["SND"]
-        method = data["header"]["MET"]
-        resource = data["header"]["RES"]
-        body = data["body"][0]
-
-        match method:
+        match request.met:
             case "AUTH":
-                match resource:
+                match request.res:
                     case "Login":
-                        user = data["header"]["RESPR"][0].strip()
-                        password = data["header"]["RESPR"][1].strip()
-                        
-                        if(usuarios.get(user) != None):
-                            if(usuarios.get(user).get("senha") == password):
-                                usuarios[user]["IP"] = user_ip
-                                response = "SND=SERVER&STATUS=OK--RESP "+str(usuarios[user]["id"])
+                        username = request.res_params[0]
+                        password = request.res_params[1]
+                        user_id = 0
+
+                        for n,user in enumerate(usuarios,start=0):
+                            if user.get("username") == username:
+                                user_acc = user
+                                user_id = n
+                                break
+
+                        if user_acc != None:
+                            if user_acc.get("password") == password:
+                                user_acc["IP"] = requestManager.addressCaught[0]
+                                user = {"id":user_id}
+
+                                preparedResponse = request.prepareRequestResponse(
+                                    snd="SERVER",
+                                    status="OK",
+                                    body=user
+                                )
+
+                                del user
+                                del username
+                                del password
+                                del user_id
+                                del user_acc
+                                del n
                             else:
                                 response = "SND=SERVER&STATUS=OK--RESP NEG"
                         else:
                             response = "SND=SERVER&STATUS=OK--RESP NEG"
                     case "Logout":
-                        print(data)
                         raise Exception
                     case _:
                         response = "SND=SERVER&STATUS=ERR--RESP RNF"
@@ -269,9 +280,8 @@ while True:
         print(e)
         response = "SND=SERVER&STATUS=ERR--RESP UE" # erro inesperado
 
-        
-    print("Respondido :", response)
+    requestManager.answerRequest(preparedResponse)
+    print("Respondido :",preparedResponse)
     print("")
-    response = response.encode()
-    conexao.send(response)
-    conexao.close()
+
+    

@@ -3,22 +3,196 @@ from datetime import datetime
 import json
 import time
 
+class Response:
+    def __init__(self):
+        "oi"
+
+class Request:
+    def __init__(self,destiny_addr:str,destiny_door:str,met:str,res:str = None,res_params:tuple = None,body = None,cntt = None):
+        self.destiny_addr = destiny_addr
+        self.destiny_door = destiny_door
+        self.met = met
+        self.res = res
+        self.res_params = res_params
+        self.body = body
+        self.cntt = cntt
+
+    def prepareRequestResponse(self,snd:str,status:str,body:dict|str="",cntt:str = "json"):
+        if not snd:
+            raise ValueError("Request-prepareResponse-1")
+        if not status:
+            raise ValueError("Request-prepareResponse-2")
+        if body == None:
+            raise ValueError("Request-prepareResponse-3")
+        
+        match cntt:
+            case "json":
+                body = json.dumps(body)
+            case 'str':
+                body = str(body)
+            case None:
+                raise ValueError("Request-prepareResponse-4")
+
+        return f"SND={snd}&STATUS={status}&CNTT={cntt}--RESP {body}"
+
+    def prepareRequestMessage(self):
+        if not self.origin_addr:
+            raise ValueError("propriedade origin_addr não pode estar vazia")
+        
+        if not self.origin_door:
+            raise ValueError("propriedade origin_door não pode estar vazia")
+        
+        if not self.met:
+            raise ValueError("propriedade met não pode estar vazio")
+
+        if not self.res_params and self.res:
+            self.res_params = "()"
+        elif not self.res_params and not self.res:
+            self.res_params = ""
+        else:
+            self.res_params = json.dumps(self.res_params).replace("[","(").replace("]",")").replace('"','')
+
+        if not self.body:
+           self.body = ""
+
+        match self.cntt:
+            case "json":
+               self.body = json.dumps(self.body)
+            case "str":
+               self.body = str(self.body)
+            case None:
+                self.cntt = "NS"
+            case _:
+                raise ValueError("cnnt (content type) deve ser nome de uma classe valida para a requisição")
+        
+        return f"MET={self.met}&SND={self.origin_addr}/{self.origin_door}&RES={self.res}{self.res_params}&CNTT={self.cntt}--H {self.body}"
+
+    @property
+    def destiny_addr(self):
+        return self._destiny_addr
+
+    @property
+    def destiny_door(self):
+        return self._destiny_door
+
+    @property
+    def origin_addr(self):
+        return self._origin_addr
+
+    @property
+    def origin_door(self):
+        return self._origin_door
+
+    @property
+    def address(self):
+        return self._address
+    
+    @property
+    def body(self):
+        return self._body
+    
+    @property
+    def door(self):
+        return self._door
+    
+    @property
+    def met(self):
+        return self._met  
+    
+    @property
+    def res(self):
+        return self._res
+   
+    @property
+    def res_params(self):
+        return self._res_params
+    
+    @property
+    def cntt(self):
+        return self._cntt
+    
+    @destiny_addr.setter
+    def destiny_addr(self, new_destiny_addr):
+        self._destiny_addr = new_destiny_addr
+
+    @destiny_door.setter
+    def destiny_door(self,new_destiny_door):
+        self._destiny_door = new_destiny_door
+
+    @origin_door.setter
+    def origin_door(self,new_origin_door):
+        self._origin_door = new_origin_door
+
+    @origin_addr.setter
+    def origin_addr(self,new_origin_addr):
+        self._origin_addr = new_origin_addr
+
+    @address.setter
+    def address(self,new_address):
+        if new_address is not str:
+            raise TypeError("address deve ser str")        
+        self._address = new_address
+    
+    @body.setter
+    def body(self,new_body:dict|str):
+        self._body = new_body
+
+    @door.setter
+    def door(self,new_door):
+        if not new_door:
+            raise ValueError("MSG não pode ser vazio")        
+        self._door = new_door
+        
+    @res.setter
+    def res(self,new_res):      
+        self._res = new_res
+    
+    @res_params.setter
+    def res_params(self,new_res_params):     
+        self._res_params = new_res_params
+    
+    @met.setter
+    def met(self,new_met):
+        if not new_met:
+            raise ValueError("met não pode ser vazio")        
+        self._met = new_met
+    
+    @cntt.setter
+    def cntt(self,new_cntt):    
+        self._cntt = new_cntt
+    
+
 class RequestManager:
-    def __init__(self) -> None:
-        self.private_ip = self.getPrivateIp()
-        self.private_door = 12000
-        self.server_ip = None
-        self.server_door = 12000
-        self.msn3HeaderParams = ["AUTH","CDS","REG"]
+    def __init__(self,lineEndIp: str = None,) -> None:
+        self.myIp = self.getPrivateIp()
+        self.myDoor = 12000
+        self.lineEndIp = lineEndIp
+        self.lineEndDoor = 12000
+        self.msn3ReqParams = ["AUTH","CDS","REG"]
+        self.socket = socket(AF_INET, SOCK_STREAM)        
 
-    def parseMsn3Request(self,request):
-        if request.find("--H") != -1:
-            request = request.split("--H")
-        elif request.find("--RESP"):
-            request = request.split("--RESP")
+    def generateSocketListener(self):
+        tubleListener = (self.getPrivateIp(),self.getPrivateDoor())
+        self.socket.bind( tubleListener )
+        self.socket.listen(True)
 
-        resp_h = request[0].strip().split("&")
-        resp_b = request[1].strip().split("&")
+    def catchDecodedRequest(self):
+        self.connection, self.addressCaught = self.socket.accept()
+        self._messageCaught = self.connection.recv(1024)
+        return self.parseToRequest(self._messageCaught.decode())
+
+    def answerRequest(self,preperadResponse):
+        self.connection.send(preperadResponse.encode())
+        self.connection.close()
+
+    def parseToRequest(self,message):
+        if message.find("--H") != -1:
+            message = message.split("--H")
+        elif message.find("--RESP"):
+            message = message.split("--RESP")
+
+        resp_h = message[0].strip().split("&")
+        resp_b = message[1].strip().split("&")
 
         requestData = {"header": {}}
 
@@ -28,12 +202,14 @@ class RequestManager:
 
         try:
             sender_data = requestData["header"]["SND"].split("/")
-            requestData["header"]["SND"] = sender_data[0]
-            requestData["header"]["DOOR"] = sender_data[1]
+            
+            index = 1
 
-            for method in self.msn3HeaderParams:
-                if requestData["header"]["RES"] != method:
-                    raise SyntaxError("Metodo nao encontrado")
+            if 0 <= index < len(sender_data):
+                requestData["header"]["SND"] = sender_data[index]                
+                requestData["header"]["DOOR"] = sender_data[0]
+            else:
+                requestData["header"]["SND"] = sender_data[0]  
             
             if requestData["header"].get("RES") != None: 
                 res_param = requestData["header"]["RES"].replace(")","&").replace("(","&").split("&")
@@ -41,50 +217,71 @@ class RequestManager:
                 res =  res_param[0]
                 params = str(res_param[1])
 
-            if params != '':
-                params = params.split(",")
+                if params != '':
+                    params = params.split(",")
+                    params = [param.strip() for param in params]
 
-            requestData["header"]["RES"] = res
-            requestData["header"]["RESPR"] = params  
-        except KeyError:
+                requestData["header"]["RES"] = res
+                requestData["header"]["RESPR"] = params
+        except KeyError as e:
+            print(e)
             requestData["header"]["RES"] = ""
             requestData["header"]["RESPR"] = ""    
         
-        requestData["body"] = resp_b  
+        if requestData["header"]["CNTT"] == "json":
+            requestData["body"] = json.loads(resp_b[0])
 
-        return requestData
+        request = Request(
+            destiny_addr=self.addressCaught[0],
+            destiny_door=self.addressCaught[1],
+            met=requestData["header"]["MET"],
+            res=requestData["header"]["RES"],
+            res_params=requestData["header"]["RESPR"],
+            body=requestData["body"],
+            cntt=requestData["header"]["CNTT"]
+        )
+
+        return request
     
-    def sendMsn3Request(self,address,door,met,res,res_params = None,msg = None,cntt = None):
-        
-        if res_params is None:
-            res_params = "()"
-        else:
-            res_params = json.dumps(res_params)
-            res_params = res_params.replace("[","(").replace("]",")")
-        
-        if msg is None:
-            msg = ""
-
-        match cntt:
-            case "json":
-                msg = json.dumps(msg)
-            case "str":
-                msg = str(msg)
-            case None|_:
-                cntt = "None"
-
+    def sendMsn3Request(self,request: Request, destiny_ip:str = None, destiny_door:int = None):
         try:
-            request = f"MET={met}&SND={self.private_ip}/{self.private_door}&RES={res}{res_params}&CNTT{cntt}--H {msg}"
+            if destiny_door == None:
+                if request.destiny_door == None:
+                    if self.lineEndDoor == None:
+                        raise ValueError("Destino não pode estar vazio")
+                    else:
+                        door = self.lineEndDoor
+                else:
+                    door = request.destiny_door
+            else:
+                door = destiny_door
+            
+            if destiny_ip == None:
+                if request.destiny_addr == None:
+                    if self.lineEndDoor == None:
+                        raise ValueError("Destino não pode estar vazio")
+                    else:
+                        ip = self.lineEndDoor
+                else:
+                    ip = request.destiny_addr
+            else:
+                ip = destiny_ip
 
-            socketTuple = (address, door)
-            msg = msg.encode()
+            request.origin_door = self.myIp
+            request.origin_addr = self.myDoor
+
+            preparedMessage = request.prepareRequestMessage()
+            encodedMsg = preparedMessage.encode()
+
+            socketTuple = (ip, door)
             socCli = socket( AF_INET, SOCK_STREAM )
             socCli.connect( socketTuple )
-            socCli.send(request)
+            socCli.send(encodedMsg)
             resp = socCli.recv(1024)
             socCli.close()
 
-            resp = self.parseMsn3Request(resp)
+            response = self.parseToRequest(resp.decode())
+
             if resp["STATUS"] == "OK":
                 time.sleep(2)
                 return resp
@@ -92,13 +289,14 @@ class RequestManager:
                 time.sleep(2)
                 raise ConnectionError(f"{resp["body"]}")
                 
-
         except Exception as e:
             print(e)
-
             time.sleep(2)
             return False
     
+    def setResponse(self,request:Request):
+        self.request = request
+
     def validaResposta(self,resposta):
         if resposta["header"]["STATUS"] == "ERR":
             raise ConnectionError(resposta["body"])
@@ -108,16 +306,13 @@ class RequestManager:
             
         return resposta
       
-    def setServerIp(self,ip):
-        self.server_ip = ip
+    def setLineEndIp(self,ip):
+        self.lineEndIp = ip
 
-    def setServerDoor(self,door):
-        self.server_door = door
-
-    def setReceiverId(self,id_receiver):
-        self.id_receiver = id_receiver
-
-    def getPrivateIp(self):        
+    def setLineEndDoor(self,door):
+        self.lineEndDoor = door
+    
+    def getPrivateIp(self):
         try:
             # Cria um socket de conexão para determinar o IP privado
             with socket(AF_INET, SOCK_DGRAM) as s:
@@ -128,7 +323,15 @@ class RequestManager:
             return f"Erro ao obter IP privado: {e}"
         
     def getPrivateDoor(self):
-        return self.private_door
+        return self.myDoor
+
+    @property
+    def messageCaught(self):
+        return self._messageCaught
+    
+    @messageCaught.setter
+    def messageCaught(self,new_message_caught):
+        self._messageCaught = new_message_caught
 
 
 class ChatManager:
@@ -201,7 +404,7 @@ class ChatManager:
         while True:
             msg_input = input("digite quitapp para sair: ")
             
-            if msg_input is "quitapp":
+            if msg_input == "quitapp":
                 break
             else:
                 msg = {
@@ -211,7 +414,7 @@ class ChatManager:
                     "datetime": datetime.now().strftime("%Y:%m:%d %H:%M:%S")
                 }
                 msg = json.dumps(msg)
-                self.sendMsn3Request(address=self.server_ip,door=self.server_door,msg=msg,cntt="json",met="REG",res="EnviarMensagem",res_params=[self.user_id, self.id_receiver])
+                self.sendMsn3Request(address=self.lineEndIp,door=self.lineEndDoor,msg=msg,cntt="json",met="REG",res="EnviarMensagem",res_params=[self.user_id, self.id_receiver])
    
     def setUserId(self,user_id):        
         self.user_id = user_id
