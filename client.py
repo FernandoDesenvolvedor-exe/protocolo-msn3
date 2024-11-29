@@ -109,8 +109,11 @@ def validaResposta(resposta):
     return resposta
 
 def contatos(user_id):
-    msg = "MET=CDS&SND="+chatManager.private_ip+"&RES=Contatos("+str(user_id)+")--H "
-    return validaResposta(enviaRequisicao(msg))
+    return requestManager.sendMsn3Request(Request(
+        met="CDS",
+        res="Contatos",
+        res_params=(user_id)
+    ))
 
 def conversas(user_id,contact_id):
     msg = "MET=CDS&SND="+chatManager.private_ip+":12000&RES=Conversas("+str(user_id)+","+contact_id+")--H "
@@ -150,16 +153,14 @@ def logout(user_id):
         
 def login(username,password,requestManager: RequestManager):       
     request = Request(
-        destiny_addr="192.168.5.165",
-        destiny_door=12000,
         met="AUTH",
         res="Login",
         res_params=(username,password)
     )
 
-    requestManager.sendMsn3Request(request)
+    return requestManager.sendMsn3Request(request)
 
-requestManager.setLineEndIp("192.168.68.107") # inicialmente, o ip privcdo do servidor deve ser colocado aqui
+requestManager.setLineEndIp("10.199.11.158") # inicialmente, o ip privado do servidor deve ser colocado aqui
 # CÓDIGO PRINCIPAL
 while True:
     limpaTela()
@@ -198,18 +199,19 @@ while True:
             time.sleep(0.7)      
 
             try:
-                loginData = login(username,password,requestManager)
+                loginResponse = login(username,password,requestManager)
 
-                if loginData["body"][0] != "NEG" and loginData["body"][0] != "RNF":   
-                    chatManager.setUserName(username)
+                if loginResponse.body is dict:
+                    chatManager.user_name = username
+                    chatManager.user_id = loginResponse.body.get("id")
                     print("")
                     print("")
                     print(f"{alignCenter()}Usuario Autorizado")
                     print("")
-                    time.sleep(0.7)                   
+                    time.sleep(0.7)           
 
-                    chatManager.setUserId(loginData["body"][0])
-                    contatos_salvos = contatos(chatManager.user_id)
+                    chatManager.setUserId(loginResponse.body.get("id"))
+                    contatos_salvos = contatos(chatManager.user_id, requestManager)
 
                     while True:
                         limpaTela()

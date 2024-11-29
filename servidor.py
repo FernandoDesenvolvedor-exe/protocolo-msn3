@@ -6,7 +6,6 @@ from manager import *
 from socket import *
 import json
 
-
 # variaveis globais
 requestManager = RequestManager()
 
@@ -117,7 +116,7 @@ while True:
                                 user_acc["IP"] = requestManager.addressCaught[0]
                                 user = {"id":user_id}
 
-                                preparedResponse = request.prepareRequestResponse(
+                                preparedResponse = Response(
                                     snd="SERVER",
                                     status="OK",
                                     body=user
@@ -138,9 +137,9 @@ while True:
                     case _:
                         response = "SND=SERVER&STATUS=ERR--RESP RNF"
             case "CDS":
-                match resource:
+                match request.res:
                     case "Contatos":
-                        id = data["header"]["RESPR"][0]
+                        id = str(request.res_params[0])
                         
                         if conversas.get(id) != None:
                             try:                             
@@ -163,6 +162,12 @@ while True:
                                     }
 
                                     n += 1
+
+                                preperadResponse = Response(
+                                    body=json.dumps(users),
+                                    snd="SERVER",
+                                    status="OK"
+                                )
 
                             except IndexError:
                                 print("deu ruim pai")
@@ -281,7 +286,5 @@ while True:
         response = "SND=SERVER&STATUS=ERR--RESP UE" # erro inesperado
 
     requestManager.answerRequest(preparedResponse)
-    print("Respondido :",preparedResponse)
+    print("Respondido :",preparedResponse.formatedResponse)
     print("")
-
-    

@@ -4,11 +4,92 @@ import json
 import time
 
 class Response:
-    def __init__(self):
-        "oi"
+    def __init__(self,snd:str=None,status:str=None,body:dict|str="",cntt:str = "json"):        
+        
+        self.snd = snd
+        self.status = status
+        self.body = body
+        self.cntt = cntt
+        
+        match cntt:
+            case "json":
+                body = json.dumps(body)
+            case 'str':
+                body = str(body)
+            case None:
+                raise ValueError("Request-prepareResponse-4")
+
+        self.formatedResponse =  f"SND={snd}&STATUS={status}&CNTT={cntt}--RESP {body}"
+
+    def setAttributesByFormatedResponse(self):
+        request = self.formatedResponse.split("--RESP ")
+        header = request[0].strip().split("&")
+        body = request[1].strip()
+
+        headerDict = {"header": {}}
+
+        for data in header:
+            key_data = data.split("=")
+            headerDict["header"][key_data[0]] = key_data[1]
+
+        if headerDict["header"].get("CNTT") != None:
+            match headerDict["header"].get("CNTT"):
+                case "json":
+                    self.body = body = json.loads(body)
+                    self.cntt = "json"
+                case "str":
+                    self.body = str(body)
+                    self.cntt = "str"
+                case _:
+                    self.cntt = "NS"
+        else:
+            self.cntt = "None"
+
+        self.snd = headerDict["header"].get("SND")
+        self.status = headerDict["header"]["STATUS"]
+
+    @property
+    def formatedResponse(self):
+        return self._formatedResponse
+    
+    @formatedResponse.setter
+    def formatedResponse(self,newResponse):
+        self._formatedResponse = newResponse
+
+    @property
+    def snd(self):
+        return self._snd
+    
+    @snd.setter
+    def snd(self,newSnd):
+        self._snd = newSnd
+
+    @property
+    def status(self):
+        return self._status
+    
+    @status.setter
+    def status(self,newStatus):
+        self._status = newStatus
+
+    @property
+    def body(self):
+        return self._body
+    
+    @body.setter
+    def body(self,newBody):
+        self._body = newBody
+
+    @property
+    def cntt(self):
+        return self._cntt
+    
+    @cntt.setter
+    def cntt(self,newCntt):
+        self._cntt = newCntt
 
 class Request:
-    def __init__(self,destiny_addr:str,destiny_door:str,met:str,res:str = None,res_params:tuple = None,body = None,cntt = None):
+    def __init__(self,met:str,destiny_door:str=None,destiny_addr:str=None,res:str = None,res_params:tuple = None,body = None,cntt = None):
         self.destiny_addr = destiny_addr
         self.destiny_door = destiny_door
         self.met = met
@@ -161,7 +242,6 @@ class Request:
     def cntt(self,new_cntt):    
         self._cntt = new_cntt
     
-
 class RequestManager:
     def __init__(self,lineEndIp: str = None,) -> None:
         self.myIp = self.getPrivateIp()
@@ -181,8 +261,9 @@ class RequestManager:
         self._messageCaught = self.connection.recv(1024)
         return self.parseToRequest(self._messageCaught.decode())
 
-    def answerRequest(self,preperadResponse):
-        self.connection.send(preperadResponse.encode())
+    def answerRequest(self,preperadResponse:Response):
+        response = preperadResponse.formatedResponse
+        self.connection.send(response.encode())
         self.connection.close()
 
     def parseToRequest(self,message):
@@ -230,6 +311,9 @@ class RequestManager:
         
         if requestData["header"]["CNTT"] == "json":
             requestData["body"] = json.loads(resp_b[0])
+        else:
+            requestData["body"] = resp_b[0]
+
 
         request = Request(
             destiny_addr=self.addressCaught[0],
@@ -261,7 +345,7 @@ class RequestManager:
                     if self.lineEndDoor == None:
                         raise ValueError("Destino não pode estar vazio")
                     else:
-                        ip = self.lineEndDoor
+                        ip = self.lineEndIp
                 else:
                     ip = request.destiny_addr
             else:
@@ -273,27 +357,31 @@ class RequestManager:
             preparedMessage = request.prepareRequestMessage()
             encodedMsg = preparedMessage.encode()
 
-            socketTuple = (ip, door)
-            socCli = socket( AF_INET, SOCK_STREAM )
-            socCli.connect( socketTuple )
-            socCli.send(encodedMsg)
-            resp = socCli.recv(1024)
-            socCli.close()
+            try:
+                socketTuple = (ip, door)
+                socCli = socket( AF_INET, SOCK_STREAM )
+                socCli.connect( socketTuple )
+                socCli.send(encodedMsg)
+                resp = socCli.recv(1024)
+                socCli.close()
 
-            response = self.parseToRequest(resp.decode())
+                response = Response()
+                response.formatedResponse = resp.decode()
+                response.setAttributesByFormatedResponse()
 
-            if resp["STATUS"] == "OK":
+                if response.status == "OK":
+                    return response
+                else:
+                    raise ConnectionError("Response - sendMsn3Request 379")
+                    
+            except ValueError as e:
+                print(e)
                 time.sleep(2)
-                return resp
-            else:
-                time.sleep(2)
-                raise ConnectionError(f"{resp["body"]}")
-                
-        except Exception as e:
+                return False
+        except ConnectionError as e:
             print(e)
-            time.sleep(2)
             return False
-    
+        
     def setResponse(self,request:Request):
         self.request = request
 
@@ -326,6 +414,14 @@ class RequestManager:
         return self.myDoor
 
     @property
+    def addressCaught(self):
+        return self._addressCaught
+    
+    @addressCaught.setter
+    def addressCaught(self,newAddress):
+        self._addressCaught = newAddress
+
+    @property
     def messageCaught(self):
         return self._messageCaught
     
@@ -333,20 +429,43 @@ class RequestManager:
     def messageCaught(self,new_message_caught):
         self._messageCaught = new_message_caught
 
-
 class ChatManager:
-    def __init__(self,user_id=None,id_receiver=None,user_name=None) -> None:
+    def __init__(self,user_id=None,contact_id=None,user_name=None) -> None:
         self.user_id = user_id
         self.user_name = user_name
-        self.id_receiver = id_receiver
+        self.contact_id = contact_id
+
+    @property
+    def user_id(self):
+        return self._user_id
+    
+    @property
+    def user_name(self):
+        return self._user_name
+    
+    @property
+    def contact_id(self):
+        return self._contact_id
+    
+    @contact_id.setter
+    def contact_id(self,new_contact_id):
+        self._contact_id = new_contact_id
+
+    @user_name.setter
+    def user_name(self,new_name):
+        self._user_name = new_name
+
+    @user_id.setter
+    def user_id(self,new_id):
+        self._user_id = new_id
 
     def conversas(self):
-        msg = "MET=CDS&SND="+self.getPrivateIp()+"&RES=Conversas("+str(self.user_id)+","+self.id_receiver+")--H "
+        msg = "MET=CDS&SND="+self.getPrivateIp()+"&RES=Conversas("+str(self.user_id)+","+self.contact_id+")--H "
         return self.validaResposta(self.enviaRequisicao(msg))
     
     def runChat(self,requestManager):
         chat = self.conversas()["body"]
-        contact_id = self.id_receiver
+        contact_id = self.contact_id
         contact_name = chat.get("messages_sent").get("enderecado")
     
         chat2 = chat.get("messages_received")
@@ -389,7 +508,7 @@ class ChatManager:
             mensagem = conexao.recv(1024)
             mensagem = mensagem.decode()       
 
-            msg = "MET=CDS&SND="+self.getPrivateIp()+"&RES=UltimaMensagem("+str(self.user_id)+","+str(self.id_receiver)+")--H "
+            msg = "MET=CDS&SND="+self.getPrivateIp()+"&RES=UltimaMensagem("+str(self.user_id)+","+str(self.contact_id)+")--H "
             mensagem = self.validaResposta(self.enviaRequisicao(msg))
             mensagem = json.loads(mensagem["body"][0]) 
 
@@ -409,12 +528,12 @@ class ChatManager:
             else:
                 msg = {
                     "sender_id": self.user_id,
-                    "reciver_id":self.id_receiver,
+                    "reciver_id":self.contact_id,
                     "message":msg_input,
                     "datetime": datetime.now().strftime("%Y:%m:%d %H:%M:%S")
                 }
                 msg = json.dumps(msg)
-                self.sendMsn3Request(address=self.lineEndIp,door=self.lineEndDoor,msg=msg,cntt="json",met="REG",res="EnviarMensagem",res_params=[self.user_id, self.id_receiver])
+                self.sendMsn3Request(address=self.lineEndIp,door=self.lineEndDoor,msg=msg,cntt="json",met="REG",res="EnviarMensagem",res_params=[self.user_id, self.contact_id])
    
     def setUserId(self,user_id):        
         self.user_id = user_id
